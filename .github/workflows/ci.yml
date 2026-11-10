@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [ main, v1-architecture ]
+  pull_request:
+
+jobs:
+  contract:
+    name: Contract in sync with schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Validate the envelope schema parses
+        run: node -e "JSON.parse(require('fs').readFileSync('docs/agent-envelope.schema.json','utf8')); console.log('schema OK')"
+      - name: Install contract tooling
+        run: npm install
+      - name: Check generated artifacts are in sync with the schema
+        run: npm run contract:check
+
+  build:
+    name: Build all services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Frontend — install & build
+        working-directory: frontend
+        run: npm install && npm run build
+
+      - name: Backend — install & syntax check
+        working-directory: backend
+        run: npm install && node --check src/server.js
+
+      - name: Agent — install & syntax check
+        working-directory: agent
+        run: npm install && node --check src/server.js

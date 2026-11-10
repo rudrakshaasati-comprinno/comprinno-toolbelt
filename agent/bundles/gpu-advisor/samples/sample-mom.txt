@@ -1,0 +1,16 @@
+Minutes of Meeting — Cloud Migration Discovery
+Date: 2026-09-18
+Attendees: Customer platform team, AWS pre-sales
+
+Summary
+- The customer currently runs an LLM inference service on Google Cloud (GCP).
+- Current instance: a3-highgpu-1g (1x NVIDIA H100 80GB), region us-central1.
+- Model: Llama 70B, served at FP16, multi-GPU/sharded across nodes.
+- Context length: 32K tokens. Approx. 20 concurrent users.
+- Current monthly spend: ~$5,400 (includes storage and egress).
+- Goal: migrate to AWS. Target region not finalised — open to recommendation.
+
+Open items (not decided in this meeting)
+- Purchasing model (On-Demand vs Savings Plan) — to be discussed with finance.
+- Exact request rate / tokens-per-request — team to measure and share.
+- Utilisation pattern (24x7 vs business hours) — to confirm.

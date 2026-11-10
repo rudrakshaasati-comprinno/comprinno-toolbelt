@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Secrets / local env
+.env
+
+# OS cruft
+.DS_Store
+
+# Logs and scratch/probe artifacts
+*.log
+acp-*.mjs
+durability-probe.mjs
+e2e-test.mjs
+
+# Kiro CLI session exports (can be very large; not source)
+.chat.json
+*.chat.json
+
+# Agent workspace contents (keep the dir, ignore what the agent writes there)
+/workspace/*
+!/workspace/.gitkeep
+
+# Editor/backup files
+*.bak

@@ -1,0 +1,16 @@
+{
+  "id": "gpu-advisor",
+  "name": "GPU Advisor",
+  "icon": "🎮",
+  "tags": ["infra", "ai-ml", "hardware", "cost"],
+  "description": "Recommends and sizes AWS GPUs for AI/ML and HPC workloads, with real On-Demand, Savings Plan, and Bedrock cost comparisons.",
+  "version": "1.1.0",
+  "inputs": [
+    {
+      "key": "requirement",
+      "type": "text",
+      "label": "Workload / requirement",
+      "required": true
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "presales-analyst",
+  "name": "Pre-Sales Analyst",
+  "icon": "🧭",
+  "tags": ["presales", "analysis", "aws", "migration"],
+  "description": "Analyzes an engagement's inputs into requirements, AWS 7R recommendations, and proposal sections; consults the gpu-advisor specialist when GPU/ML sizing is needed.",
+  "version": "1.0.0",
+  "inputs": []
+}

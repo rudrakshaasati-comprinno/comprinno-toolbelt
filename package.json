@@ -1,0 +1,14 @@
+{
+  "name": "comprinno-toolbelt-contract-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repo-level tooling to single-source the AgentEnvelope contract from docs/agent-envelope.schema.json (generate the steering sample + TypeScript types, and check they are in sync).",
+  "scripts": {
+    "contract:gen": "node scripts/gen-contract.mjs",
+    "contract:check": "node scripts/gen-contract.mjs --check"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.3"
+  }
+}

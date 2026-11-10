@@ -1,0 +1,137 @@
+# AWS Pre-Sales AI Platform — v1 compose topology.
+#
+# Services: frontend (nginx SPA + /api proxy) -> backend (domain/DB/S3/agent
+# orchestration) -> agent (kiro-cli + orchestrator). Data: postgres + minio.
+#
+# Startup ordering uses healthchecks + depends_on: condition: service_healthy
+# so dependents wait for real readiness, not just container start. The backend
+# runs DB migrations on boot (idempotent) before serving.
+
+name: presales
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      # Bound to localhost only (not 0.0.0.0) so a local DB client can connect
+      # without exposing Postgres on the network. The backend still connects
+      # over the internal Docker network via the `postgres` hostname.
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: ${PGUSER:-presales}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-presales}
+      POSTGRES_DB: ${PGDATABASE:-presales}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-presales}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    # The official `minio/minio` image was removed from Docker Hub and quay.io
+    # when MinIO discontinued free community images (Oct 2025) and archived the
+    # project, so `minio/minio:latest` is no longer pullable. This is a re-host
+    # of the last cached official community image, pushed to a public repo and
+    # pinned by digest so the stack stays pullable and reproducible. It is the
+    # genuine official image, so the standard command/volume/healthcheck apply.
+    # Caveat: a frozen build (no security patches) hosted from a personal repo;
+    # migrating to a maintained S3 server (SeaweedFS/Garage) is a tracked
+    # follow-up.
+    image: sheikhaafaq18/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - "9001:9001"   # MinIO console (optional, for inspection)
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    environment:
+      AGENT_PORT: 4000
+      # Auth: interactive kiro-cli login (IAM Identity Center) is the primary
+      # path for testing — run `kiro-cli login` INSIDE this container once; the
+      # token cache persists in the kiro-auth volume below (mounted at
+      # /root/.aws) across rebuilds. KIRO_API_KEY is optional: it is used only
+      # when set and non-empty, and an empty value is ignored (see
+      # AcpSession.js), so an exhausted key never overrides the login. Leave it
+      # unset to force the interactive login.
+      KIRO_API_KEY: ${KIRO_API_KEY:-}
+      # AWS creds for the aws-pricing MCP the specialists may use.
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      # Persist ONLY the kiro-cli app-data store, which is where the CLI keeps
+      # its interactive-login (IdC) token (data.sqlite3). Verified empirically:
+      # `kiro-cli login` writes the token here, NOT to ~/.aws or ~/.kiro. We
+      # deliberately do NOT mount the host ~/.kiro: that would pull in the
+      # host's global skills, MCP servers, agents and steering, overriding this
+      # app's self-contained repo config. This dir holds only CLI app data, so
+      # persisting it keeps the login across rebuilds without leaking config.
+      - kiro-auth:/root/.local/share/kiro-cli
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${PGUSER:-presales}:${PGPASSWORD:-presales}@postgres:5432/${PGDATABASE:-presales}
+      AGENT_URL: http://agent:4000
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: ${S3_BUCKET:-presales}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:
+  kiro-auth:

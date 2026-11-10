@@ -1,0 +1,22 @@
+node_modules
+**/node_modules
+**/dist
+**/*.log
+.env
+**/.env
+.git
+.gitignore
+# .kiro (skills, agents, mcp.json, steering) is provided at runtime via compose
+# bind mounts, not baked into the image — so it must not enter the build context.
+.kiro
+# Top-level dev-only files not needed in the image.
+examples
+# probe/scratch artifacts from ACP verification (if any linger locally)
+acp-*.mjs
+acp-*.log
+durability-probe.mjs
+e2e-test.mjs
+# Model is downloaded at build time (see Dockerfile), not copied from here.
+vendor
+# Agent workspace is a runtime volume, not part of the build context.
+workspace

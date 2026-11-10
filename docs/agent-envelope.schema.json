@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentEnvelope",
+  "description": "Self-describing structured result returned by the agent microservice POST /agent. Designed to be Bedrock structured-outputs compatible: every object sets additionalProperties:false, constrained fields use enum, and no unsupported JSON Schema features (recursion, external $ref, numeric/length constraints) are used.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sessionId", "resultType", "artifacts", "activity"],
+  "properties": {
+    "sessionId": {
+      "type": "string",
+      "description": "The agent's ACP session id this result belongs to; the backend passes it back to continue the session."
+    },
+    "resultType": {
+      "type": "string",
+      "description": "What the agent produced, so the backend knows which artifacts to persist.",
+      "enum": ["analysis", "recommendations", "proposal", "answer", "mixed"]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Only the sections relevant to resultType are populated; others may be empty arrays or omitted.",
+      "properties": {
+        "requirements": {
+          "type": "array",
+          "description": "Requirements extracted from the engagement inputs.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "category", "text", "status", "citations"],
+            "properties": {
+              "id": { "type": "string", "description": "Stable id for this requirement, e.g. req_1." },
+              "category": { "type": "string", "description": "Grouping, e.g. COMPUTE & HOSTING, DATA & STORAGE, INTEGRATION, SECURITY, NETWORKING." },
+              "text": { "type": "string", "description": "The requirement in one sentence." },
+              "status": {
+                "type": "string",
+                "description": "Whether the requirement is well-supported by evidence or needs client clarification.",
+                "enum": ["sufficient", "needs_info"]
+              },
+              "missing": {
+                "type": "string",
+                "description": "When status is needs_info, what specifically is missing. Empty string when sufficient."
+              },
+              "citations": {
+                "type": "array",
+                "description": "Sources from the engagement inputs supporting this requirement.",
+                "items": { "$ref": "#/$defs/citation" }
+              }
+            }
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "AWS service mappings for well-supported requirements.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "requirementId", "awsService", "strategy", "confidence", "status", "rationale", "citations"],
+            "properties": {
+              "id": { "type": "string", "description": "Stable id, e.g. rec_1." },
+              "requirementId": { "type": "string", "description": "The requirement this maps, referencing requirements[].id." },
+              "from": { "type": "string", "description": "The current-state service being migrated from, e.g. Azure App Service. Empty string if not applicable." },
+              "awsService": { "type": "string", "description": "The recommended AWS service(s)." },
+              "strategy": {
+                "type": "string",
+                "description": "The 7R migration strategy for this mapping.",
+                "enum": ["rehost", "replatform", "repurchase", "refactor", "retire", "retain", "relocate"]
+              },
+              "confidence": {
+                "type": "string",
+                "description": "Agent confidence in this mapping. Only high-confidence items should be status:applied.",
+                "enum": ["high", "medium", "low"]
+              },
+              "status": {
+                "type": "string",
+                "description": "applied = auto-applied at high confidence; on_hold = blocked on missing info; override = a human changed it.",
+                "enum": ["applied", "on_hold", "override"]
+              },
+              "onHoldReason": {
+                "type": "string",
+                "description": "When status is on_hold, why. Empty string otherwise."
+              },
+              "rationale": { "type": "string", "description": "Why this AWS service was chosen." },
+              "impact": {
+                "type": "string",
+                "description": "Directional cost/operational impact. Must be framed as directional, never a priced quote. Empty string if none."
+              },
+              "estimatedMonthlyCost": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "OPTIONAL structured monthly cost ESTIMATE for charting/comparison. Populate ONLY when a defensible figure was grounded in a real source (e.g. the aws-pricing MCP or a consulted specialist); otherwise omit it entirely (leave the directional text in impact). This is an estimate, never a quote.",
+                "required": ["amount", "currency", "basis", "confidence", "source"],
+                "properties": {
+                  "amount": { "type": "number", "description": "Estimated monthly cost as a number, in the given currency." },
+                  "currency": { "type": "string", "description": "ISO currency code, e.g. USD." },
+                  "basis": { "type": "string", "description": "What the estimate assumes, e.g. 'On-Demand, 730h/mo, us-east-1, 1x instance'. Required so the number is interpretable." },
+                  "confidence": {
+                    "type": "string",
+                    "description": "Confidence in the estimate.",
+                    "enum": ["high", "medium", "low"]
+                  },
+                  "source": { "type": "string", "description": "Where the figure came from, e.g. 'aws-pricing' or a cited specialist. Never fabricate." },
+                  "period": {
+                    "type": "string",
+                    "description": "OPTIONAL. 'monthly' for recurring monthly spend (the default assumption if omitted), or 'per_run' when the figure is per execution (e.g. a training run) rather than monthly. Prevents per-run costs being compared against monthly ones.",
+                    "enum": ["monthly", "per_run"]
+                  }
+                }
+              },
+              "citations": {
+                "type": "array",
+                "description": "Supporting sources from engagement inputs.",
+                "items": { "$ref": "#/$defs/citation" }
+              },
+              "depth": {
+                "type": "string",
+                "description": "OPTIONAL analysis depth for this recommendation, used to group the output. 'deep' = fully analyzed with specialist sizing/cost (currently the GPU / AI-ML workloads, grounded by gpu-advisor); 'overview' = high-level AWS mapping for a non-focus service (short target-service rationale, no deep sizing). Defaults to 'overview' when omitted. GPU / AI-ML recommendations MUST be 'deep'.",
+                "enum": ["deep", "overview"]
+              },
+              "gpuDetail": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "OPTIONAL rich GPU/AI-ML analysis for a depth:'deep' recommendation, folded in from the gpu-advisor specialist so the UI can render the full advisor experience (hero instance, four-dimension confidence, candidate comparison, Bedrock verdict, cost comparison). Populate ONLY for deep GPU recs and ONLY with figures grounded in real sources (aws-pricing / aws-documentation / cloud-cost, or the specialist's report). Omit any sub-object or field that cannot be grounded; never fabricate specs, prices, availability, or benchmarks.",
+                "properties": {
+                  "instance": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "The single recommended AWS GPU instance shown in the hero card.",
+                    "required": ["name"],
+                    "properties": {
+                      "name": { "type": "string", "description": "AWS instance type, e.g. g6.xlarge." },
+                      "gpu": { "type": "string", "description": "GPU model and count, e.g. '1x NVIDIA L4'. Empty string if unknown." },
+                      "gpuMem": { "type": "string", "description": "GPU memory, e.g. '24 GB'. Empty string if unknown." },
+                      "vcpu": { "type": "string", "description": "vCPU count as text, e.g. '4'. Empty string if unknown." },
+                      "ram": { "type": "string", "description": "System RAM, e.g. '16 GB'. Empty string if unknown." },
+                      "region": { "type": "string", "description": "Target region, e.g. us-east-1. Empty string if unknown." }
+                    }
+                  },
+                  "confidenceMatrix": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "The four independent confidence dimensions shown as a matrix. Each is rated separately; 'low'/'medium' typically carry a note like 'Benchmark required' or 'Validation required'.",
+                    "properties": {
+                      "hardware": { "$ref": "#/$defs/gpuConfidenceDimension" },
+                      "cost": { "$ref": "#/$defs/gpuConfidenceDimension" },
+                      "performance": { "$ref": "#/$defs/gpuConfidenceDimension" },
+                      "migration": { "$ref": "#/$defs/gpuConfidenceDimension" }
+                    }
+                  },
+                  "candidates": {
+                    "type": "array",
+                    "description": "Top candidate AWS GPU instances ranked by fit and cost (typically up to 3), each with specs, a fit rationale, availability, and grounded pricing tiers.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["name"],
+                      "properties": {
+                        "name": { "type": "string", "description": "AWS instance type, e.g. g5.2xlarge." },
+                        "tag": { "type": "string", "description": "OPTIONAL short label, e.g. 'Cost-optimized', 'Direct equivalent', 'Sizing candidate'. Empty string if none." },
+                        "gpu": { "type": "string", "description": "GPU model and count, e.g. '1x NVIDIA A10G'. Empty string if unknown." },
+                        "gpuMem": { "type": "string", "description": "GPU memory, e.g. '24 GB'. Empty string if unknown." },
+                        "vcpu": { "type": "string", "description": "vCPU count as text. Empty string if unknown." },
+                        "ram": { "type": "string", "description": "System RAM, e.g. '32 GB'. Empty string if unknown." },
+                        "fit": { "type": "string", "description": "One or two sentences on why this instance fits (or the trade-off). Empty string if none." },
+                        "region": { "type": "string", "description": "Target region. Empty string if unknown." },
+                        "availability": { "type": "string", "description": "Availability note, e.g. 'verify quota / capacity'. Empty string if none." },
+                        "pricing": {
+                          "type": "array",
+                          "description": "Grounded pricing tiers for this candidate (e.g. On-Demand, 1yr No Upfront). Omit or leave empty if not grounded.",
+                          "items": { "$ref": "#/$defs/gpuPricingTier" }
+                        }
+                      }
+                    }
+                  },
+                  "bedrock": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Amazon Bedrock (managed inference) verdict for this workload, evaluated separately. Bedrock is inference-only; state applicability and the reason.",
+                    "required": ["status", "reason"],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "description": "Whether managed Bedrock inference applies to this workload.",
+                        "enum": ["applicable", "not_applicable", "partial"]
+                      },
+                      "reason": { "type": "string", "description": "Why Bedrock does or does not apply, e.g. 'Fine-tuning workload, not managed-inference; Bedrock is inference-only'." }
+                    }
+                  },
+                  "costComparison": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Current source-cloud spend vs AWS options, for the savings chart. All figures grounded; the sourceCloud baseline is labeled by its provenance in the note.",
+                    "properties": {
+                      "sourceCloud": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "The current (pre-migration) monthly spend being compared against.",
+                        "required": ["name", "monthly"],
+                        "properties": {
+                          "name": { "type": "string", "description": "Source-cloud label, e.g. 'GCP a2-highgpu-1g' or 'Current'." },
+                          "monthly": { "type": "number", "description": "Current monthly spend as a number." },
+                          "currency": { "type": "string", "description": "ISO currency code, e.g. USD. Defaults to USD if omitted." }
+                        }
+                      },
+                      "options": {
+                        "type": "array",
+                        "description": "AWS options to compare (each a monthly figure with a label). The lowest is the recommended target.",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["label", "monthly"],
+                          "properties": {
+                            "label": { "type": "string", "description": "Option label, e.g. 'AWS On-Demand - g6.xlarge' or 'AWS Savings Plan - 3yr All Upfront - g6.xlarge'." },
+                            "monthly": { "type": "number", "description": "Monthly cost as a number." },
+                            "currency": { "type": "string", "description": "ISO currency code. Defaults to USD if omitted." },
+                            "lowest": { "type": "boolean", "description": "OPTIONAL true if this is the lowest-cost / recommended option." }
+                          }
+                        }
+                      },
+                      "savingsPct": { "type": "number", "description": "OPTIONAL percentage the best AWS option saves vs the source-cloud baseline (e.g. 81.1 for -81.1%). Positive = a saving." },
+                      "provenance": { "type": "string", "description": "How the comparison was computed and where each figure came from (AWS pricing/MCP, source-cloud basis, utilization hours). Empty string if none." }
+                    }
+                  },
+                  "summary": { "type": "string", "description": "OPTIONAL one- or two-sentence plain-English recommendation shown under the hero card. Empty string if none." }
+                }
+              }
+            }
+          }
+        },
+        "proposalSections": {
+          "type": "array",
+          "description": "Drafted proposal sections.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "title", "content", "status"],
+            "properties": {
+              "id": { "type": "string", "description": "Stable section id, e.g. sec_exec." },
+              "title": { "type": "string", "description": "Section heading, e.g. Executive summary." },
+              "content": { "type": "string", "description": "Section body as markdown." },
+              "status": {
+                "type": "string",
+                "description": "Review state of the section.",
+                "enum": ["drafted", "needs_review", "reviewed"]
+              }
+            }
+          }
+        },
+        "answer": {
+          "type": "string",
+          "description": "For interrogation-style instructions (e.g. 'why Elastic Beanstalk?'), the agent's natural-language answer. Empty string when not applicable."
+        },
+        "followups": {
+          "type": "array",
+          "description": "OPTIONAL 2-3 short, contextual follow-up QUESTIONS the consultant might click next, phrased from the consultant's point of view (e.g. 'How does P4de compare to P5 on cost?'). Shown as clickable chips under the latest reply. Omit or empty when not applicable.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "activity": {
+      "type": "array",
+      "description": "Ordered activity-timeline entries describing what the agent did during this run.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ts", "label", "message"],
+        "properties": {
+          "ts": { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp." },
+          "label": {
+            "type": "string",
+            "description": "A short, free-form label for what the agent actually did in this step — emergent, not a fixed enum. Prefer the real tool or action (e.g. \"Read inventory.txt\", \"Consult tco-calculator\", \"Extract requirements\")."
+          },
+          "message": { "type": "string", "description": "Human-readable description of the step." }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "locator"],
+      "properties": {
+        "source": { "type": "string", "description": "Source name, e.g. Current-State-Architecture.pdf or Questionnaire." },
+        "locator": { "type": "string", "description": "Where in the source, e.g. p.4 or Q2. Empty string if whole-document." }
+      }
+    },
+    "gpuConfidenceDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One dimension of the GPU confidence matrix: a rating plus an optional note explaining what would raise it (e.g. 'Benchmark required').",
+      "required": ["rating"],
+      "properties": {
+        "rating": {
+          "type": "string",
+          "description": "Confidence for this dimension.",
+          "enum": ["high", "medium", "low"]
+        },
+        "note": { "type": "string", "description": "OPTIONAL short qualifier, e.g. 'Benchmark required' or 'Validation required'. Empty string if none." }
+      }
+    },
+    "gpuPricingTier": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A grounded pricing tier for a GPU instance (e.g. On-Demand or a Savings Plan term). Figures come from the aws-pricing MCP; never fabricate.",
+      "required": ["label", "monthly"],
+      "properties": {
+        "label": { "type": "string", "description": "Tier label, e.g. 'On-Demand', '1yr No Upfront', '3yr All Upfront'." },
+        "monthly": { "type": "number", "description": "Monthly cost as a number, in the given currency." },
+        "hourly": { "type": "number", "description": "OPTIONAL hourly rate as a number." },
+        "currency": { "type": "string", "description": "ISO currency code, e.g. USD. Defaults to USD if omitted." }
+      }
+    }
+  }
+}

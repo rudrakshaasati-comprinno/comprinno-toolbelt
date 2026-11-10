@@ -1,0 +1,54 @@
+{
+  "_meta": {
+    "description": "Amazon Bedrock foundation model catalog used for managed-inference matching. Model metadata only; token pricing is retrieved via the pricing MCP adapter.",
+    "source": "Amazon Bedrock documentation (https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)",
+    "note": "family_aliases are used for fuzzy matching against a customer's stated model. A match on family does NOT guarantee identical behaviour or performance to the customer's original model."
+  },
+  "models": [
+    {
+      "model_id": "meta.llama3-1-70b-instruct-v1:0",
+      "provider": "Meta",
+      "family": "Llama",
+      "family_aliases": ["llama", "llama2", "llama3", "llama-3", "llama3.1", "meta llama"],
+      "parameter_scale": "70B",
+      "supports_fine_tuning": true,
+      "context_length": 128000
+    },
+    {
+      "model_id": "meta.llama3-1-8b-instruct-v1:0",
+      "provider": "Meta",
+      "family": "Llama",
+      "family_aliases": ["llama", "llama3", "llama-3", "llama3.1"],
+      "parameter_scale": "8B",
+      "supports_fine_tuning": true,
+      "context_length": 128000
+    },
+    {
+      "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+      "provider": "Anthropic",
+      "family": "Claude",
+      "family_aliases": ["claude", "claude3", "claude-3", "anthropic"],
+      "parameter_scale": "undisclosed",
+      "supports_fine_tuning": false,
+      "context_length": 200000
+    },
+    {
+      "model_id": "mistral.mistral-large-2402-v1:0",
+      "provider": "Mistral AI",
+      "family": "Mistral",
+      "family_aliases": ["mistral", "mixtral"],
+      "parameter_scale": "undisclosed",
+      "supports_fine_tuning": false,
+      "context_length": 32000
+    },
+    {
+      "model_id": "amazon.titan-text-premier-v1:0",
+      "provider": "Amazon",
+      "family": "Titan",
+      "family_aliases": ["titan", "amazon titan"],
+      "parameter_scale": "undisclosed",
+      "supports_fine_tuning": true,
+      "context_length": 32000
+    }
+  ]
+}

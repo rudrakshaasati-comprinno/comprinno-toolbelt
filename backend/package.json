@@ -1,0 +1,24 @@
+{
+  "name": "presales-backend",
+  "version": "0.1.0",
+  "description": "Backend service for the AWS Pre-Sales AI Platform. Owns the domain (engagements, artifacts, users, proposals), Postgres persistence, S3 storage, and agent orchestration; the only service the frontend talks to.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/db/migrate.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.699.0",
+    "@aws-sdk/client-sts": "3.699.0",
+    "argon2": "0.41.1",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.5",
+    "exceljs": "4.4.0",
+    "express": "4.21.2",
+    "mammoth": "1.11.0",
+    "multer": "2.0.0",
+    "pg": "8.13.1"
+  }
+}

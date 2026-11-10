@@ -1,0 +1,20 @@
+Customer Workload Brief — Azure to AWS Migration
+Prepared: 2026-09-18
+
+Current environment
+- Cloud provider: Microsoft Azure
+- Region: East US
+- VM: Standard_NC24ads_A100_v4 (1x NVIDIA A100 80GB)
+- Model: Mistral 7B (fine-tuned), served at BF16
+- Workload type: Inference (real-time chat assistant)
+- Context length: 8K tokens
+- Concurrency: ~10 concurrent users
+- Request rate: ~3 requests/second
+- Tokens per request: ~2,000 input / ~400 output
+- Utilisation: 24x7 (always-on endpoint)
+- Current monthly cost: ~$2,680
+
+Migration goals
+- Target AWS region: us-east-1
+- Purchasing preference: compare On-Demand vs 3-year Savings Plan
+- Also evaluate whether Amazon Bedrock is a cheaper managed option.
