@@ -30,31 +30,36 @@ services:
       retries: 10
     restart: unless-stopped
 
-  minio:
-    # The official `minio/minio` image was removed from Docker Hub and quay.io
-    # when MinIO discontinued free community images (Oct 2025) and archived the
-    # project, so `minio/minio:latest` is no longer pullable. This is a re-host
-    # of the last cached official community image, pushed to a public repo and
-    # pinned by digest so the stack stays pullable and reproducible. It is the
-    # genuine official image, so the standard command/volume/healthcheck apply.
-    # Caveat: a frozen build (no security patches) hosted from a personal repo;
-    # migrating to a maintained S3 server (SeaweedFS/Garage) is a tracked
-    # follow-up.
-    image: sheikhaafaq18/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
-    ports:
-      - "9001:9001"   # MinIO console (optional, for inspection)
-    volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ["CMD-SHELL", "mc ready local || curl -sf http://localhost:9000/minio/health/live || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
+  # ── MinIO (local S3-compatible storage) ───────────────────────────────────
+  # Commented out: using real AWS S3 instead.
+  # To switch back to MinIO: uncomment this block, comment out the S3_* env
+  # vars in the backend service below, and uncomment the MinIO env vars there.
+  #
+  # minio:
+  #   # The official `minio/minio` image was removed from Docker Hub and quay.io
+  #   # when MinIO discontinued free community images (Oct 2025) and archived the
+  #   # project, so `minio/minio:latest` is no longer pullable. This is a re-host
+  #   # of the last cached official community image, pushed to a public repo and
+  #   # pinned by digest so the stack stays pullable and reproducible. It is the
+  #   # genuine official image, so the standard command/volume/healthcheck apply.
+  #   # Caveat: a frozen build (no security patches) hosted from a personal repo;
+  #   # migrating to a maintained S3 server (SeaweedFS/Garage) is a tracked
+  #   # follow-up.
+  #   image: sheikhaafaq18/minio:latest
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+  #     MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+  #   ports:
+  #     - "9001:9001"   # MinIO console (optional, for inspection)
+  #   volumes:
+  #     - miniodata:/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "mc ready local || curl -sf http://localhost:9000/minio/health/live || exit 1"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #   restart: unless-stopped
 
   agent:
     build:
@@ -100,16 +105,27 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${PGUSER:-presales}:${PGPASSWORD:-presales}@postgres:5432/${PGDATABASE:-presales}
       AGENT_URL: http://agent:4000
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: ${S3_BUCKET:-presales}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
-      S3_FORCE_PATH_STYLE: "true"
+      # ── AWS S3 (real bucket) ──────────────────────────────────────────────
+      # S3_ENDPOINT is empty → SDK uses real AWS S3 (not MinIO).
+      # Fill in S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY in .env
+      S3_ENDPOINT: ""
+      S3_REGION: ${AWS_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: "false"
+      # ── MinIO (local S3-compatible storage) ──────────────────────────────
+      # Uncomment these and comment out the AWS S3 block above to use MinIO.
+      # S3_ENDPOINT: http://minio:9000
+      # S3_BUCKET: ${S3_BUCKET:-presales}
+      # S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      # S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      # S3_FORCE_PATH_STYLE: "true"
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      # minio:               # uncomment if switching back to MinIO
+      #   condition: service_healthy
       agent:
         condition: service_healthy
     healthcheck:
@@ -125,7 +141,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "8000:80"
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -133,5 +149,5 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  # miniodata:   # uncomment if switching back to MinIO
   kiro-auth:
