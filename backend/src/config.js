@@ -20,7 +20,7 @@ export const AGENT_URL = process.env.AGENT_URL || "http://localhost:4000";
 // ── Object storage (S3-compatible; MinIO in v1, real S3 later via config) ──
 // To switch to real AWS S3: unset S3_ENDPOINT and S3_FORCE_PATH_STYLE, and set
 // standard AWS credentials/region. No code change required.
-export const S3_ENDPOINT = process.env.S3_ENDPOINT || "http://localhost:9000";
+export const S3_ENDPOINT = process.env.S3_ENDPOINT || "";
 export const S3_REGION = process.env.S3_REGION || "us-east-1";
 export const S3_BUCKET = process.env.S3_BUCKET || "presales";
 // Use explicit S3_* credentials. Do NOT fall back to ambient AWS_* env vars:

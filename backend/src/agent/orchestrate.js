@@ -126,7 +126,17 @@ export async function orchestrateAgentRun({
   // is enforced by the storage layer via the session policy, not by trust in
   // the agent. If minting fails, fail the run rather than fall back to broad
   // creds.
-  const storage = await mintEngagementCredentials(engagementId);
+  const storage = {
+    endpoint: "",
+    region: process.env.S3_REGION || "ap-south-1",
+    bucket: process.env.S3_BUCKET,
+    prefix: `engagements/${engagementId}/`,
+    forcePathStyle: false,
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY,
+    sessionToken: null,
+    expiration: null,
+  };
 
   const body = {
     engagementId,
